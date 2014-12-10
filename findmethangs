@@ -1,0 +1,139 @@
+#!/usr/local/bin/ruby
+require 'byebug'
+
+# Dependencies
+  # Ruby 2.0
+  # bundler and gem byebug 
+    # Ruby debugger - https://github.com/deivid-rodriguez/byebug
+  # pv - pipe view to see dd progress bar
+  # ps2pdf - Used to generate a full analysis of the image as a PDF file
+
+puts "----------------------------------------------------"
+puts "Searching for all available partitions..."
+puts "----------------------------------------------------"
+puts # New line
+
+# Remove existing data, if any
+`rm -rf tmp 2> /dev/null` # Suppress errors
+`sudo rm -rf carved_files 2> /dev/null` # Suppress errors
+
+# Create temporary files in a tmp folder
+`mkdir tmp`
+`touch ./tmp/parted.tmp`
+`touch ./tmp/md5.tmp`
+`touch ./tmp/mmls.tmp`
+`touch ./tmp/fsstat.tmp`
+`touch ./tmp/blkstat.tmp`
+
+# Dump all partition info
+`sudo parted -l >> ./tmp/parted.tmp`
+
+# Grep parition info
+part_names = `grep "Model" /tmp/parted.tmp`
+part_details = `grep "/dev" /tmp/parted.tmp`
+
+part_names = part_names.split("\n")
+part_info = part_details.split("\n")
+
+
+puts "Following partitions were found on this system:"
+
+# Store all partitions in a hash and then use option number as key to retrieve
+	# the selected hash
+p_count = 1
+partitions = Hash.new
+locations = Hash.new
+sizes = Hash.new
+
+part_names.each do |p|
+  part_details = part_info # Temp var for each loop
+	partitions[p_count] = p.gsub("Model: ", "")
+
+  # Organize partition location and size in a hash
+    # p_count - 1 is used because Array starts from 0 and Hash starts from 1
+  part_details[p_count-1] = part_details[p_count-1].split(" ")
+  locations[p_count] = part_details[p_count-1][1].gsub(":", "")
+  sizes[p_count] = part_details[p_count-1][2]
+
+  # Output all partitions with associated details
+	puts "[#{p_count}] " + partitions[p_count].to_s + " - #{locations[p_count]} -" + \
+    " #{sizes[p_count]} "
+  p_count += 1
+end
+
+puts
+print "Select a [P]artition to image: "
+sel_opt = gets.chomp.to_i
+
+puts "You selected parition [#{sel_opt}] #{partitions[sel_opt]} - #{locations[sel_opt]} - #{sizes[sel_opt]}"
+puts
+
+print "Provide a name for the image: "
+img_name = gets.chomp
+
+puts "Creating image... "
+puts
+
+# Create image of the chosen partition with DD
+  # pv shows progress bar
+`sudo dd if=#{locations[sel_opt]} | pv | dd of=./tmp/#{img_name}.img bs=4K conv=noerror,sync`
+img_loc = "./tmp/" + img_name + ".img"
+
+puts
+puts "#{img_loc} has been created!"
+puts
+
+puts "Selection an [O]ption to "
+puts "[1] md5sum"
+puts "[2] mmls "
+puts "[3] mmstat"
+puts "[4] fsstat"
+puts "[5] blkstat"
+puts "[6] Carve files"
+puts "[7] Generate full report"
+
+option = $stdin.gets.chomp.to_i
+
+case option
+when 1
+  $stdout.puts `md5sum #{img_loc}`
+when 2
+  $stdout.puts `mmls #{img_loc}`
+when 3
+  $stdout.puts `mmstat #{img_loc}`
+when 4
+  $stdout.puts `fsstat #{img_loc}`
+when 5
+  puts `blkstat -f #{img_loc}`
+when 6
+  `sudo scalpel -c /etc/scalpel/scalpel.conf -o carved_files #{img_loc}`
+when 7
+  
+# TO DO: Should dump the following to the .tmp files and read from there.
+# This data may need to be reused later.
+
+  md5        = `md5sum #{img_loc}`
+  parts      = `mmls #{img_loc}`
+  vol_info   = `mmstat #{img_loc}`
+  fs_details = `fsstat #{img_loc}`
+  
+  `touch /tmp/text_report.txt`
+  
+  output = File.open( "tmp/text_report.txt", "w" )
+  output << "Volume Info: " + vol_info + "\n"
+  output << "MD5: " + md5 + "\n"
+  output << "Partitions: " + parts + "\n"
+  output << "Filesystem details: " + fs_details + "\n"
+
+  output.close
+
+  puts "MD5: " + md5 + "\n"
+  puts "Partitions: " + parts + "\n"
+  puts "Volume Info: " + vol_info + "\n"
+  puts "Filesystem details: " + fs_details + "\n"
+
+  `enscript file.txt -o - | ps2pdf - #{img_name}_report.pdf`
+
+else
+  puts "You can't even use a computer!"
+end
