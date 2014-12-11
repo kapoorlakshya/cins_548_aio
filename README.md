@@ -49,8 +49,9 @@ Timeline        [5]
 PDF Report      [6]
 
 	- All of the above in a PDF.
-	-
+	
 Select Image    [7]
+
 	- Switch between images.
 	
 Help            [8]
