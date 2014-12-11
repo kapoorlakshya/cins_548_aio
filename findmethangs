@@ -16,7 +16,7 @@ def cleanup
     $stdout.print "Would you like to save the temp files (images/*.tmp files) [y/N]?"
     opt = $stdin.gets.chomp.downcase
     $stdout.puts
-    
+
 
     if opt == "" # Default option is No
       opt = 'n'
@@ -141,6 +141,13 @@ def print_help
   COPYRIGHT
       Released under the laws of Master Zeichick (CINS 548) at California State University, Chico. 
   "
+end
+
+def get_file_struct(img_fs = "ntfs")
+  $stdout.puts "Retrieving file structure for '#{$img_name}'. Please wait..."
+  $stdout.puts
+
+  system "fls -f #{img_fs} #{$img_loc}"
 end
 
 def perform_options(option)
@@ -271,9 +278,12 @@ def perform_options(option)
         $stdout.puts "Please choose a valid option!"
       end
 
-
-  # DISK DUMP
+  # FILE STRUCTURE
   when 4
+    get_file_struct()
+
+  # PDF Report
+  when 5
 
     if !$img_name or !$img_loc
       $stdout.puts "NO IMAGE PROVIDED! Please use option [1] to create an image or provide a valid .img file."
@@ -314,7 +324,7 @@ def perform_options(option)
     # `gnome-open findmethangs_report.pdf 2> /dev/null` # Open PDF
 
   # HELP
-  when 5
+  when 6
     print_help()
 
   else
@@ -332,13 +342,12 @@ end
 
 # User defined image
 if ARGV[0].to_s != ""
+  $img_name =  ARGV[0].to_s.split("/").last # Only store file name with extension
+
   unless ARGV[0].to_s.include? "/home/" # Does not contain full path
-    $img_name =  ARGV[0].to_s.scan(/\D*.img/) # Only store file name with extension
     $img_loc = `pwd`.gsub("\n", "") + "/" + ARGV[0].to_s # Store full path
-  
   else 
     # Full path is provided
-    $img_name = ARGV[0].to_s
     $img_loc = ARGV[0].to_s
   end
 end
@@ -351,12 +360,13 @@ while option != 0
   $stdout.puts "FindMeThangs, bro!"
   $stdout.puts "----------------------------------------------------"
   $stdout.puts
-  $stdout.puts "Image Options [1]"
-  $stdout.puts "Drive Info    [2]"
-  $stdout.puts "File Recovery [3]"
-  $stdout.puts "PDF Report    [4]"
-  $stdout.puts "Help          [5]"
-  $stdout.puts "Exit          [0]"
+  $stdout.puts "Image Options  [1]"
+  $stdout.puts "Drive Info     [2]"
+  $stdout.puts "File Recovery  [3]"
+  $stdout.puts "File Structure [4]"
+  $stdout.puts "PDF Report     [5]"
+  $stdout.puts "Help           [6]"
+  $stdout.puts "Exit           [0]"
 
   print "Select an option: "
   option = $stdin.gets.chomp.to_i
