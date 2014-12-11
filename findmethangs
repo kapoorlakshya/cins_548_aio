@@ -1,139 +1,365 @@
 #!/usr/local/bin/ruby
 require 'byebug'
 
-# Dependencies
-  # Ruby 2.0
-  # bundler and gem byebug 
-    # Ruby debugger - https://github.com/deivid-rodriguez/byebug
-  # pv - pipe view to see dd progress bar
-  # ps2pdf - Used to generate a full analysis of the image as a PDF file
+#
+# GLOBALS
+#
 
-puts "----------------------------------------------------"
-puts "Searching for all available partitions..."
-puts "----------------------------------------------------"
-puts # New line
+$img_name, $img_name = nil
 
-# Remove existing data, if any
-`rm -rf tmp 2> /dev/null` # Suppress errors
-`sudo rm -rf carved_files 2> /dev/null` # Suppress errors
+#
+# FUNCTIONS BEGIN
+#
 
-# Create temporary files in a tmp folder
-`mkdir tmp`
-`touch ./tmp/parted.tmp`
-`touch ./tmp/md5.tmp`
-`touch ./tmp/mmls.tmp`
-`touch ./tmp/fsstat.tmp`
-`touch ./tmp/blkstat.tmp`
+def cleanup
+  if $img_name # Image was created 
+    $stdout.print "Would you like to save the temp files (images/*.tmp files) [y/N]?"
+    opt = $stdin.gets.chomp.downcase
 
-# Dump all partition info
-`sudo parted -l >> ./tmp/parted.tmp`
+    if opt == "" # Default option is No
+      opt = 'n'
+    end
 
-# Grep parition info
-part_names = `grep "Model" /tmp/parted.tmp`
-part_details = `grep "/dev" /tmp/parted.tmp`
-
-part_names = part_names.split("\n")
-part_info = part_details.split("\n")
-
-
-puts "Following partitions were found on this system:"
-
-# Store all partitions in a hash and then use option number as key to retrieve
-	# the selected hash
-p_count = 1
-partitions = Hash.new
-locations = Hash.new
-sizes = Hash.new
-
-part_names.each do |p|
-  part_details = part_info # Temp var for each loop
-	partitions[p_count] = p.gsub("Model: ", "")
-
-  # Organize partition location and size in a hash
-    # p_count - 1 is used because Array starts from 0 and Hash starts from 1
-  part_details[p_count-1] = part_details[p_count-1].split(" ")
-  locations[p_count] = part_details[p_count-1][1].gsub(":", "")
-  sizes[p_count] = part_details[p_count-1][2]
-
-  # Output all partitions with associated details
-	puts "[#{p_count}] " + partitions[p_count].to_s + " - #{locations[p_count]} -" + \
-    " #{sizes[p_count]} "
-  p_count += 1
+    if opt == 'n' # Remove existing data, if any
+      `sudo rm -rf tmp 2> /dev/null` # Send errors to /dev/null (suppress)
+      `sudo rm #{$img_name} 2> /dev/null` # Send errors to /dev/null (suppress)
+      `sudo rm -rf output 2> /dev/null`
+      `sudo rm -rf ./carved_files 2> /dev/null`
+      `sudo rm *.ses 2> /dev/null`
+    end
+  end
 end
 
-puts
-print "Select a [P]artition to image: "
-sel_opt = gets.chomp.to_i
+def create_temp_files
+  # Create temporary files in a tmp folder
+  `mkdir tmp 2> /dev/null`
+  `touch ./tmp/parted.tmp 2> /dev/null`
+end
 
-puts "You selected parition [#{sel_opt}] #{partitions[sel_opt]} - #{locations[sel_opt]} - #{sizes[sel_opt]}"
-puts
+def dump_partition_info
+  # Dump all partition info
+  `sudo parted -l > ./tmp/parted.tmp`
+end
 
-print "Provide a name for the image: "
-img_name = gets.chomp
+def create_backup_image()
+  # Grep parition info
+  part_names = `grep "Model" ./tmp/parted.tmp`
+  part_details = `grep "/dev" ./tmp/parted.tmp`
 
-puts "Creating image... "
-puts
+  part_names = part_names.split("\n")
+  part_info = part_details.split("\n")
 
-# Create image of the chosen partition with DD
-  # pv shows progress bar
-`sudo dd if=#{locations[sel_opt]} | pv | dd of=./tmp/#{img_name}.img bs=4K conv=noerror,sync`
-img_loc = "./tmp/" + img_name + ".img"
+  $stdout.puts "Following partitions were found on this system:"
 
-puts
-puts "#{img_loc} has been created!"
-puts
+  # Store all partitions in a hash and then use option number as key to retrieve
+    # the selected hash
+  p_count = 1
+  partitions = Hash.new
+  locations = Hash.new
+  sizes = Hash.new
 
-puts "Selection an [O]ption to "
-puts "[1] md5sum"
-puts "[2] mmls "
-puts "[3] mmstat"
-puts "[4] fsstat"
-puts "[5] blkstat"
-puts "[6] Carve files"
-puts "[7] Generate full report"
+  part_names.each do |p|
+    part_details = part_info # Temp var for each loop
+    partitions[p_count] = p.gsub("Model: ", "")
 
-option = $stdin.gets.chomp.to_i
+    # Organize partition location and size in a hash
+      # p_count - 1 is used because Array starts from 0 and Hash starts from 1
+    part_details[p_count-1] = part_details[p_count-1].split(" ")
+    locations[p_count] = part_details[p_count-1][1].gsub(":", "")
+    sizes[p_count] = part_details[p_count-1][2]
 
-case option
-when 1
-  $stdout.puts `md5sum #{img_loc}`
-when 2
-  $stdout.puts `mmls #{img_loc}`
-when 3
-  $stdout.puts `mmstat #{img_loc}`
-when 4
-  $stdout.puts `fsstat #{img_loc}`
-when 5
-  puts `blkstat -f #{img_loc}`
-when 6
-  `sudo scalpel -c /etc/scalpel/scalpel.conf -o carved_files #{img_loc}`
-when 7
+    # Output all partitions with associated details
+    $stdout.puts "[#{p_count}] " + partitions[p_count].to_s + " - #{locations[p_count]} -" + \
+      " #{sizes[p_count]} "
+    p_count += 1
+  end
+
+  $stdout.puts
+  print "Select a [P]artition to image: "
+  sel_opt = gets.chomp.to_i
+
+  $stdout.puts "You selected parition [#{sel_opt}] #{partitions[sel_opt]} - #{locations[sel_opt]} - #{sizes[sel_opt]}"
+  $stdout.puts
+
+  print "Provide a name for the image: "
+  img_name = gets.chomp
+
+  # Validate image name
+  while img_name == ""
+    $stdout.puts "File name cannot be blank!"
+    print "Provide a valid name for the image: "
+    img_name = gets.chomp
+  end
+
+  $stdout.print "Enter a block size: "
+  block_size = $stdin.gets.chomp.to_i
   
-# TO DO: Should dump the following to the .tmp files and read from there.
-# This data may need to be reused later.
+  if block_size == 0 # 64K is a good bs
+    $stdout.puts "--> Using default block size of 64K."
+    block_size = "64K" 
+  end
 
-  md5        = `md5sum #{img_loc}`
-  parts      = `mmls #{img_loc}`
-  vol_info   = `mmstat #{img_loc}`
-  fs_details = `fsstat #{img_loc}`
+  $stdout.puts "Creating image... "
+  $stdout.puts
+
+  # Create image of the chosen partition with DD
+    # pv shows progress bar
+  `sudo dd if=#{locations[sel_opt]} | pv | dd of=#{img_name}.img bs=#{block_size} conv=noerror,sync`
+
+  img_loc = img_name + ".img" # Store full image location for later use
+
+  $stdout.puts
+  $stdout.puts "--> #{img_loc} has been created!"
+  $stdout.puts
+
+  return img_name, img_loc
+end
+
+def print_help
+  $stdout.puts "
+  NAME
+    FindMeThangs!
+
+  DESCRIPTION
+      An all-in-one n00b friendly command line based digital forensics utility in Ruby.
+
+  USAGE
+      ruby ./findmethangs <optional_image_location.img>
+
+  DEPENDENCIES
+      - Linux based environment (SIFT VM preferred)
+      - Ruby 2.0.0 or higher
+      - Sleuthkit
+      - Enscript and ps2pdf - For PDF report
+
+  BUGS
+      No known bugs.
+
+  AUTHOR
+     Clint Bettiga
+     Lakshya Kapoor
   
-  `touch /tmp/text_report.txt`
-  
-  output = File.open( "tmp/text_report.txt", "w" )
-  output << "Volume Info: " + vol_info + "\n"
-  output << "MD5: " + md5 + "\n"
-  output << "Partitions: " + parts + "\n"
-  output << "Filesystem details: " + fs_details + "\n"
+  COPYRIGHT
+      Released under the laws of Master Zeichick (CINS 548) at California State University, Chico. 
+  "
+end
 
-  output.close
+def perform_options(option)
+ 
+  if option > 0 and option < 6 # Only create these files if a valid option is selected
+    create_temp_files() # Create temporary files to hold data
+    dump_partition_info() # get partition info
+  end
 
-  puts "MD5: " + md5 + "\n"
-  puts "Partitions: " + parts + "\n"
-  puts "Volume Info: " + vol_info + "\n"
-  puts "Filesystem details: " + fs_details + "\n"
+  case option
 
-  `enscript file.txt -o - | ps2pdf - #{img_name}_report.pdf`
+  # DD OPTIONS
+  when 1
+    $stdout.puts "Backup drive     [1]"
+    $stdout.puts "Wipe drive       [2]"
+    $stdout.print "Enter an option: "
+    option = $stdin.gets.chomp.to_i
+    case option
+      when 1
+      $stdout.puts
+      $stdout.puts "Searching for all available partitions..."
+      $stdout.puts # New line
 
-else
-  puts "You can't even use a computer!"
+      # If user does not provide an image, use the create image.
+      if !$img_name or !$img_loc
+        $img_name, $img_loc = create_backup_image()
+      end
+
+      when 2
+        $stdout.print "Output file location [Default: Image from Option 1]: "
+        output_file = $stdin.gets.chomp.to_i
+
+        if output_file == "" # Use default
+          output_file = $img_loc
+        end
+
+        `dd if=/dev/zero of=#{output_file} bs=1M`
+
+      else
+        $stdout.puts "Please choose a valid option!"
+      end
+
+  # SHOW DRIVE INFO
+  when 2
+
+    if !$img_name or !$img_loc
+      $stdout.puts "NO IMAGE PROVIDED! Please use option [1] to create an image or provide a valid .img file."
+      puts
+      return
+    end
+
+    $stdout.puts "MD5"
+    $stdout.puts "--------------------------------------"
+    $stdout.puts `md5sum #{$img_loc}`
+    $stdout.puts
+
+    $stdout.puts "MMLS"
+    $stdout.puts "--------------------------------------"
+    $stdout.puts `mmls #{$img_loc}`
+    $stdout.puts
+
+    $stdout.puts "MMSTAT"
+    $stdout.puts "--------------------------------------"
+    $stdout.puts `mmstat #{$img_loc}`
+    $stdout.puts
+
+    $stdout.puts "FSSTAT"
+    $stdout.puts "--------------------------------------"
+    $stdout.puts `fsstat #{$img_loc}`
+    $stdout.puts
+
+    $stdout.puts "BLKSTAT"
+    $stdout.puts "--------------------------------------"
+    $stdout.puts `blkstat -f #{$img_loc}`
+    $stdout.puts
+
+  # FILE RECOVERY    
+  when 3
+
+    if !$img_name or !$img_loc
+      $stdout.puts "NO IMAGE PROVIDED! Please use option [1] to create an image or provide a valid .img file."
+      puts
+      return
+    end
+
+    $stdout.puts "Please select a data recovery tool:"
+
+    $stdout.puts "Foremost  [1]"
+    $stdout.puts "Photorec  [2]"
+    $stdout.puts "Scalpel   [3]" 
+    
+    print "Select an option: "
+    option = $stdin.gets.chomp.to_i
+
+    case option
+      when 1
+        $stdout.puts  "Please select a file type..."
+
+        file_types    = %w(jpg gif png bmp avi exe mpg wac riff wmv mov pdf ole doc zip rar htm cpp all)
+
+        file_types.size.times do | i |
+          $stdout.puts "#{file_types[i]} [#{i+1}]"
+        end
+
+        opt = $stdin.gets.chomp.to_i
+        $stdout.puts "You selected file type '#{file_types[opt]}'"
+        $stdout.puts "--> Using image: #{$img_loc}"
+
+        `foremost -t #{file_types[opt]} -i #{$img_loc}`
+
+      when 2
+        `photorec`
+
+      when 3
+
+        if !$img_name or !$img_loc
+          $stdout.puts "NO IMAGE PROVIDED! Please use option [1] to create an image or provide a valid .img file."
+          puts
+          return
+        end
+
+        $stdout.puts "--> Carving files with default configurations for Scalpel."
+        $stdout.puts
+
+        `sudo scalpel -c /etc/scalpel/scalpel.conf -o carved_files #{$img_loc}`
+      else
+        $stdout.puts "Please choose a valid option!"
+      end
+
+
+  # DISK DUMP
+  when 4
+
+    if !$img_name or !$img_loc
+      $stdout.puts "NO IMAGE PROVIDED! Please use option [1] to create an image or provide a valid .img file."
+      puts
+      return
+    end
+
+    $stdout.puts
+    $stdout.puts "--> Generating full report."
+    $stdout.puts
+
+    md5        = `md5sum #{$img_loc}`
+    parts      = `mmls #{$img_loc}`
+    vol_info   = `mmstat #{$img_loc}`
+    fs_details = `fsstat #{$img_loc}`
+    
+    `touch tmp/file.txt`
+    
+    output = File.open( "tmp/text_report.txt","w" )
+    output << "Volume Info: " + vol_info + "\n"
+    output << "MD5: " + md5 + "\n"
+    output << "Partitions: " + parts + "\n"
+    output << "Filesystem details: " + fs_details + "\n"
+
+    output.close
+
+    $stdout.puts "MD5: " + md5 + "\n"
+    $stdout.puts "Partitions: " + parts + "\n"
+    $stdout.puts "Volume Info: " + vol_info + "\n"
+    $stdout.puts "Filesystem details: " + fs_details + "\n"
+
+    `enscript tmp/text_report.txt -B -o - | ps2pdf - findmethangs_report.pdf`
+    
+    # $stdout.puts
+    # $stdout.puts "--> Opening file findmethangs_report.pdf!"
+    # $stdout.puts
+    
+    # `gnome-open findmethangs_report.pdf 2> /dev/null` # Open PDF
+
+  # HELP
+  when 5
+    print_help()
+
+  else
+    $stdout.puts "You can't even use a computer!"
+  end
+end
+
+#
+# FUNCTIONS END
+#
+
+# User defined image
+if ARGV[0].to_s != ""
+  $img_name =  ARGV[0].to_s.scan(/\D*.img/) # Only store file name with extension
+  $img_loc = `pwd`.gsub("\n", "") + "/" + ARGV[0].to_s # Store full location
+end
+
+option = nil
+while option != 0
+
+  $stdout.puts
+  $stdout.puts "----------------------------------------------------"
+  $stdout.puts "FindMeThangs, bro!"
+  $stdout.puts "----------------------------------------------------"
+  $stdout.puts
+  $stdout.puts "Image Options [1]"
+  $stdout.puts "Drive Info    [2]"
+  $stdout.puts "File Recovery [3]"
+  $stdout.puts "PDF Report    [4]"
+  $stdout.puts "Help          [5]"
+  $stdout.puts "Exit          [0]"
+
+  print "Select an option: "
+  option = $stdin.gets.chomp.to_i
+  $stdout.puts
+
+  if option == 0
+    cleanup() # User controlled post-process cleanup
+
+    $stdout.puts "Thank you for using FindMeThangs!"
+    $stdout.puts
+    break
+
+  elsif
+    perform_options(option) # performs
+  end
+
 end
