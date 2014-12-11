@@ -65,7 +65,7 @@ Exit            [0]
 
 USAGE
 ---
-  ruby ./findmethangs <optional_image_location.img>
+  ruby ./findmethangs "optional_image_location.img"
 
 DEPENDENCIES
 ---
