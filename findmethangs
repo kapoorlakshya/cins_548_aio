@@ -32,7 +32,7 @@ end
 def create_temp_files
   # Create temporary files in a tmp folder
   `mkdir tmp 2> /dev/null`
-  `touch ./tmp/parted.tmp 2> /dev/null`
+  `touch tmp/parted.tmp 2> /dev/null`
 end
 
 def dump_partition_info
@@ -150,9 +150,18 @@ def get_file_struct(img_fs = "ntfs")
   system "fls -f #{img_fs} #{$img_loc}"
 end
 
+def dump_access_log
+  `fls -m mnt -f ntfs #{$img_loc} > tmp/file_struct.tmp`
+end
+
+def create_timeline(img_fs = "ntfs")
+  system "mactime -b tmp/file_struct.tmp"
+end
+
+
 def perform_options(option)
  
-  if option > 0 and option < 6 # Only create these files if a valid option is selected
+  if option > 0 and option < 9 # Only create these files if a valid option is selected
     create_temp_files() # Create temporary files to hold data
     dump_partition_info() # get partition info
   end
@@ -282,8 +291,16 @@ def perform_options(option)
   when 4
     get_file_struct()
 
-  # PDF Report
+  # TIMELINE
   when 5
+    $stdout.puts "--> Generating timeline. Please wait..."
+    $stdout.puts
+
+    dump_access_log()
+    create_timeline()
+
+  # PDF Report
+  when 6
 
     if !$img_name or !$img_loc
       $stdout.puts "NO IMAGE PROVIDED! Please use option [1] to create an image or provide a valid .img file."
@@ -296,24 +313,31 @@ def perform_options(option)
     $stdout.puts
 
     md5        = `md5sum #{$img_loc}`
+      byebug
     parts      = `mmls #{$img_loc}`
     vol_info   = `mmstat #{$img_loc}`
     fs_details = `fsstat #{$img_loc}`
-    
-    `touch tmp/file.txt`
+    timeline = `mactime -b ./tmp/file_struct.tmp`
+
+    # Timeline
+    dump_access_log()
+
+    `touch tmp/text_report.txt` # Create temp text report
     
     output = File.open( "tmp/text_report.txt","w" )
     output << "Volume Info: " + vol_info + "\n"
     output << "MD5: " + md5 + "\n"
     output << "Partitions: " + parts + "\n"
     output << "Filesystem details: " + fs_details + "\n"
+    output << "Timeline: \n" + timeline + "\n"
 
     output.close
 
-    $stdout.puts "MD5: " + md5 + "\n"
-    $stdout.puts "Partitions: " + parts + "\n"
-    $stdout.puts "Volume Info: " + vol_info + "\n"
-    $stdout.puts "Filesystem details: " + fs_details + "\n"
+    # Output to screen
+    # $stdout.puts "MD5: " + md5 + "\n"
+    # $stdout.puts "Partitions: " + parts + "\n"
+    # $stdout.puts "Volume Info: " + vol_info + "\n"
+    # $stdout.puts "Filesystem details: " + fs_details + "\n"
 
     `enscript tmp/text_report.txt -B -o - | ps2pdf - full_report.pdf`
     
@@ -323,8 +347,14 @@ def perform_options(option)
     
     # `gnome-open findmethangs_report.pdf 2> /dev/null` # Open PDF
 
+  # Select new image
+  when 7
+    $stdout.print "Enter full path to the image file: "
+    $img_loc = $stdin.gets.chomp.to_s
+    $img_name = $img_loc.split("/").last
+
   # HELP
-  when 6
+  when 8
     print_help()
 
   else
@@ -360,13 +390,15 @@ while option != 0
   $stdout.puts "FindMeThangs, bro!"
   $stdout.puts "----------------------------------------------------"
   $stdout.puts
-  $stdout.puts "Image Options  [1]"
-  $stdout.puts "Drive Info     [2]"
-  $stdout.puts "File Recovery  [3]"
-  $stdout.puts "File Structure [4]"
-  $stdout.puts "PDF Report     [5]"
-  $stdout.puts "Help           [6]"
-  $stdout.puts "Exit           [0]"
+  $stdout.puts "Image Options   [1]"
+  $stdout.puts "Drive Info      [2]"
+  $stdout.puts "File Recovery   [3]"
+  $stdout.puts "File Structure  [4]"
+  $stdout.puts "Timeline        [5]"
+  $stdout.puts "PDF Report      [6]"
+  $stdout.puts "Select Image    [7]"
+  $stdout.puts "Help            [8]"
+  $stdout.puts "Exit            [0]"
 
   print "Select an option: "
   option = $stdin.gets.chomp.to_i
