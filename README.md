@@ -70,8 +70,11 @@ USAGE
 DEPENDENCIES
 ---
   - Linux based environment (SIFT VM preferred)
+  
   - Ruby 2.0.0 or higher
+  
   - Sleuthkit
+  
   - Enscript and ps2pdf - For PDF report
 
 BUGS
@@ -81,6 +84,7 @@ BUGS
 AUTHOR
 ---
  Clint Bettiga
+ 
  Lakshya Kapoor
 
 COPYRIGHT
