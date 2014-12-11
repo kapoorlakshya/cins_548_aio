@@ -13,30 +13,54 @@ FEATURES
 ---
 
 Image Options   [1]
+
 	- Create Image
+	
 	- Wipe Image
+	
 Drive Info      [2]
+
 	- md5sum
+	
 	- mmls
+	
 	- mmstat
+	
 	- fsstat
+	
 	- blkstat
+	
 File Recovery   [3]
+
 	- Foremost
+	
 	- Photorec
+	
 	- Scalpel
+	
 File Structure  [4]
+
 	- fls
+	
 Timeline        [5]
+
  	- fls & mactime
+ 	
 PDF Report      [6]
+
 	- All of the above in a PDF.
+	-
 Select Image    [7]
 	- Switch between images.
+	
 Help            [8]
+
 	- Kind of man page
+	
 Exit            [0]
+
 	- Get out of the choppah!
+	
 
 USAGE
 ---
