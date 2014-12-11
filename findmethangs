@@ -143,7 +143,14 @@ def print_help
   "
 end
 
+def get_fs(img_name)
+  img_fs = `mmstat #{$img_name}`.gsub("\n", "")
+  return img_fs  
+end
+
+
 def get_file_struct(img_fs = "ntfs")
+  img_fs = get_fs($img_loc)
   $stdout.puts "Retrieving file structure for '#{$img_name}'. Please wait..."
   $stdout.puts
 
@@ -185,10 +192,13 @@ def perform_options(option)
 
       when 2
         $stdout.print "Output file location [Default: Image from Option 1]: "
-        output_file = $stdin.gets.chomp.to_i
+        output_file = $stdin.gets.chomp
 
-        if output_file == "" # Use default
-          output_file = $img_loc
+        while output_file == "" # Validate output location
+          $stdout.puts "Enter a valid file location!"
+          $stdout.puts
+          $stdout.print "Output file location [Default: Image from Option 1]: "
+          output_file = $stdin.gets.chomp
         end
 
         system "dd if=/dev/zero of=#{output_file} bs=64K"
@@ -281,7 +291,7 @@ def perform_options(option)
 
         system "sudo scalpel -c /etc/scalpel/scalpel.conf -o scalpel_output #{$img_loc}"
         sleep(1.0)
-        `sudo chmod 777 scalpel-output`
+        `sudo chmod 777 ./scalpel-output 2> /dev/null`
 
       else
         $stdout.puts "Please choose a valid option!"
@@ -313,7 +323,6 @@ def perform_options(option)
     $stdout.puts
 
     md5        = `md5sum #{$img_loc}`
-      byebug
     parts      = `mmls #{$img_loc}`
     vol_info   = `mmstat #{$img_loc}`
     fs_details = `fsstat #{$img_loc}`
