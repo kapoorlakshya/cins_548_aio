@@ -15,17 +15,16 @@ def cleanup
   if $img_name # Image was created 
     $stdout.print "Would you like to save the temp files (images/*.tmp files) [y/N]?"
     opt = $stdin.gets.chomp.downcase
+    $stdout.puts
+    
 
     if opt == "" # Default option is No
       opt = 'n'
     end
 
     if opt == 'n' # Remove existing data, if any
-      `sudo rm -rf tmp 2> /dev/null` # Send errors to /dev/null (suppress)
-      `sudo rm #{$img_name} 2> /dev/null` # Send errors to /dev/null (suppress)
-      `sudo rm -rf output 2> /dev/null`
-      `sudo rm -rf ./carved_files 2> /dev/null`
-      `sudo rm *.ses 2> /dev/null`
+      `sudo rm -rf scalpel-output tmp output 2> /dev/null` # Send errors to /dev/null (suppress)
+      `sudo rm *ses #{$img_name} 2> /dev/null`
     end
   end
 end
@@ -76,19 +75,19 @@ def create_backup_image()
 
   $stdout.puts
   print "Select a [P]artition to image: "
-  sel_opt = gets.chomp.to_i
+  sel_opt = $stdin.gets.chomp.to_i
 
   $stdout.puts "You selected parition [#{sel_opt}] #{partitions[sel_opt]} - #{locations[sel_opt]} - #{sizes[sel_opt]}"
   $stdout.puts
 
   print "Provide a name for the image: "
-  img_name = gets.chomp
+  img_name = $stdin.gets.chomp
 
   # Validate image name
   while img_name == ""
     $stdout.puts "File name cannot be blank!"
     print "Provide a valid name for the image: "
-    img_name = gets.chomp
+    img_name = $stdin.gets.chomp
   end
 
   $stdout.print "Enter a block size: "
@@ -165,10 +164,8 @@ def perform_options(option)
       $stdout.puts "Searching for all available partitions..."
       $stdout.puts # New line
 
-      # If user does not provide an image, use the create image.
-      if !$img_name or !$img_loc
-        $img_name, $img_loc = create_backup_image()
-      end
+      # Create image and return name and location
+      $img_name, $img_loc = create_backup_image() 
 
       when 2
         $stdout.print "Output file location [Default: Image from Option 1]: "
@@ -178,7 +175,7 @@ def perform_options(option)
           output_file = $img_loc
         end
 
-        `dd if=/dev/zero of=#{output_file} bs=1M`
+        system "dd if=/dev/zero of=#{output_file} bs=64K"
 
       else
         $stdout.puts "Please choose a valid option!"
@@ -250,10 +247,10 @@ def perform_options(option)
         $stdout.puts "You selected file type '#{file_types[opt]}'"
         $stdout.puts "--> Using image: #{$img_loc}"
 
-        `foremost -t #{file_types[opt]} -i #{$img_loc}`
+        system "foremost -t #{file_types[opt]} -i #{$img_loc}"
 
       when 2
-        `photorec`
+        system "photorec"
 
       when 3
 
@@ -263,10 +260,13 @@ def perform_options(option)
           return
         end
 
-        $stdout.puts "--> Carving files with default configurations for Scalpel."
+        $stdout.puts "--> Carving files with default configuration for Scalpel."
         $stdout.puts
 
-        `sudo scalpel -c /etc/scalpel/scalpel.conf -o carved_files #{$img_loc}`
+        system "sudo scalpel -c /etc/scalpel/scalpel.conf -o scalpel_output #{$img_loc}"
+        sleep(1.0)
+        `sudo chmod 777 scalpel-output`
+
       else
         $stdout.puts "Please choose a valid option!"
       end
@@ -282,7 +282,7 @@ def perform_options(option)
     end
 
     $stdout.puts
-    $stdout.puts "--> Generating full report."
+    $stdout.puts "--> Generating full report. Please wait..."
     $stdout.puts
 
     md5        = `md5sum #{$img_loc}`
@@ -305,7 +305,7 @@ def perform_options(option)
     $stdout.puts "Volume Info: " + vol_info + "\n"
     $stdout.puts "Filesystem details: " + fs_details + "\n"
 
-    `enscript tmp/text_report.txt -B -o - | ps2pdf - findmethangs_report.pdf`
+    `enscript tmp/text_report.txt -B -o - | ps2pdf - full_report.pdf`
     
     # $stdout.puts
     # $stdout.puts "--> Opening file findmethangs_report.pdf!"
@@ -326,10 +326,21 @@ end
 # FUNCTIONS END
 #
 
+#
+# UI BEGINS
+#
+
 # User defined image
 if ARGV[0].to_s != ""
-  $img_name =  ARGV[0].to_s.scan(/\D*.img/) # Only store file name with extension
-  $img_loc = `pwd`.gsub("\n", "") + "/" + ARGV[0].to_s # Store full location
+  unless ARGV[0].to_s.include? "/home/" # Does not contain full path
+    $img_name =  ARGV[0].to_s.scan(/\D*.img/) # Only store file name with extension
+    $img_loc = `pwd`.gsub("\n", "") + "/" + ARGV[0].to_s # Store full path
+  
+  else 
+    # Full path is provided
+    $img_name = ARGV[0].to_s
+    $img_loc = ARGV[0].to_s
+  end
 end
 
 option = nil
@@ -363,3 +374,7 @@ while option != 0
   end
 
 end
+
+#
+# UI ENDS
+#
